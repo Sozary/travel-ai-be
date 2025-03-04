@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from typing import AsyncGenerator
+import random
 
 # Load environment variables
 load_dotenv()
@@ -40,6 +41,7 @@ def openai_stream_response(user_prompt: str, trip_type: str = "standard"):
 
     ## **Output Structure:**
     - **Each day contains a list of activities with exact locations** (e.g., "Louvre Museum, Paris, France").
+    - **Each activity has a visit duration**, formatted like "2 hours", "45 minutes", or "30 minutes".
     - **Transport mode is simplified** to: "Walking", "Metro", "Taxi", "Bus", "Bicycle", "Ferry", "Train".
     - **Output is in valid JSON format**.
 
@@ -52,33 +54,20 @@ def openai_stream_response(user_prompt: str, trip_type: str = "standard"):
             {{
               "name": "Louvre Museum",
               "location": "Louvre Museum, Paris, France",
+              "duration": "2 hours",
               "transport_to_next": "Metro"
             }},
             {{
               "name": "Tuileries Garden",
               "location": "Tuileries Garden, Paris, France",
-              "transport_to_next": "Walking"
-            }}
-          ]
-        }},
-        {{
-          "day": 2,
-          "activities": [
-            {{
-              "name": "Eiffel Tower",
-              "location": "Eiffel Tower, Paris, France",
-              "transport_to_next": "Taxi"
-            }},
-            {{
-              "name": "Seine River Cruise",
-              "location": "Seine River, Paris, France",
+              "duration": "45 minutes",
               "transport_to_next": "Walking"
             }}
           ]
         }}
       ],
       "total_budget": "2500 euros",
-      "transportation": ["Metro", "Walking", "Taxi"],
+      "transportation": ["Metro", "Walking"],
       "accommodation": "Boutique hotel"
     }}
     """
@@ -117,46 +106,36 @@ def get_itinerary(destination: str, trip_type: str = "standard"):
     """
     return StreamingResponse(openai_stream_response(destination, trip_type), media_type="text/event-stream")
 
+# Function to generate a random visit duration (for fake itinerary)
+def random_duration():
+    options = ["30 minutes", "45 minutes", "1 hour", "1.5 hours", "2 hours"]
+    return random.choice(options)
+
 # Fake Itinerary Data (to simulate OpenAI streaming response)
 FAKE_ITINERARY = {
     "days": [
         {
             "day": 1,
             "activities": [
-                {"name": "Luxembourg Gardens", "location": "Luxembourg Gardens, Paris, France", "transport_to_next": "Walking"},
-                {"name": "Sainte-Chapelle", "location": "Sainte-Chapelle, Paris, France", "transport_to_next": "Metro"},
-                {"name": "Place Dauphine", "location": "Place Dauphine, Paris, France", "transport_to_next": "Walking"}
+                {"name": "Luxembourg Gardens", "location": "Luxembourg Gardens, Paris, France", "duration": random_duration(), "transport_to_next": "Walking"},
+                {"name": "Sainte-Chapelle", "location": "Sainte-Chapelle, Paris, France", "duration": random_duration(), "transport_to_next": "Metro"},
+                {"name": "Place Dauphine", "location": "Place Dauphine, Paris, France", "duration": random_duration(), "transport_to_next": "Walking"}
             ]
         },
         {
             "day": 2,
             "activities": [
-                {"name": "Montmartre", "location": "Montmartre, Paris, France", "transport_to_next": "Metro"},
-                {"name": "Basilica of the Sacré-Cœur", "location": "Basilica of the Sacré-Cœur, Paris, France", "transport_to_next": "Walking"},
-                {"name": "Place du Tertre", "location": "Place du Tertre, Paris, France", "transport_to_next": "Walking"}
+                {"name": "Montmartre", "location": "Montmartre, Paris, France", "duration": random_duration(), "transport_to_next": "Metro"},
+                {"name": "Basilica of the Sacré-Cœur", "location": "Basilica of the Sacré-Cœur, Paris, France", "duration": random_duration(), "transport_to_next": "Walking"},
+                {"name": "Place du Tertre", "location": "Place du Tertre, Paris, France", "duration": random_duration(), "transport_to_next": "Walking"}
             ]
         },
         {
             "day": 3,
             "activities": [
-                {"name": "Rodin Museum", "location": "Rodin Museum, Paris, France", "transport_to_next": "Metro"},
-                {"name": "Les Invalides", "location": "Les Invalides, Paris, France", "transport_to_next": "Walking"},
-                {"name": "Musée d'Orsay", "location": "Musée d'Orsay, Paris, France", "transport_to_next": "Walking"}
-            ]
-        },
-        {
-            "day": 4,
-            "activities": [
-                {"name": "Seine River Cruise", "location": "Seine River, Paris, France", "transport_to_next": "Walking"},
-                {"name": "Ile de la Cité", "location": "Ile de la Cité, Paris, France", "transport_to_next": "Walking"},
-                {"name": "Latin Quarter", "location": "Latin Quarter, Paris, France", "transport_to_next": "Walking"}
-            ]
-        },
-        {
-            "day": 5,
-            "activities": [
-                {"name": "Parc des Buttes-Chaumont", "location": "Parc des Buttes-Chaumont, Paris, France", "transport_to_next": "Metro"},
-                {"name": "Canal Saint-Martin", "location": "Canal Saint-Martin, Paris, France", "transport_to_next": "Walking"}
+                {"name": "Rodin Museum", "location": "Rodin Museum, Paris, France", "duration": random_duration(), "transport_to_next": "Metro"},
+                {"name": "Les Invalides", "location": "Les Invalides, Paris, France", "duration": random_duration(), "transport_to_next": "Walking"},
+                {"name": "Musée d'Orsay", "location": "Musée d'Orsay, Paris, France", "duration": random_duration(), "transport_to_next": "Walking"}
             ]
         }
     ],
@@ -164,7 +143,6 @@ FAKE_ITINERARY = {
     "transportation": ["Metro", "Walking"],
     "accommodation": "Budget hotel"
 }
-
 
 async def generate_fake_itinerary_stream(destination: str, trip_type: str) -> AsyncGenerator[str, None]:
     """
@@ -189,7 +167,7 @@ async def generate_fake_itinerary_stream(destination: str, trip_type: str) -> As
     yield f'"accommodation": "{FAKE_ITINERARY["accommodation"]}"}}\n'  # End of JSON
 
 @app.get("/generate-itinerary-fake/")
-async def get_itinerary(destination: str, trip_type: str = "standard"):
+async def get_itinerary_fake(destination: str, trip_type: str = "standard"):
     """
     Streams the fake AI-generated travel itinerary **as it's being generated** for real-time frontend updates.
     """
