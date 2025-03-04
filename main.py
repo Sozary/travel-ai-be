@@ -96,3 +96,46 @@ def get_itinerary(destination: str, trip_type: str = "standard"):
     Streams the AI-generated travel itinerary as it's being generated.
     """
     return StreamingResponse(openai_stream_response(destination, trip_type), media_type="text/event-stream")
+
+# Fake Itinerary Data (to simulate OpenAI streaming response)
+FAKE_ITINERARY = {
+    "days": [
+        {"day": 1, "city": "Paris", "activities": ["Visit the Louvre Museum", "Stroll through the Tuileries Garden"], "transport": "Metro"},
+        {"day": 2, "city": "Paris", "activities": ["Explore Montmartre and visit the Sacré-Cœur", "Dinner cruise on the Seine River"], "transport": "Walking and funicular"},
+        {"day": 3, "city": "Paris", "activities": ["Visit Notre Dame Cathedral", "Explore the Latin Quarter"], "transport": "Metro"},
+        {"day": 4, "city": "Paris", "activities": ["Day trip to Versailles", "Visit the Palace and Gardens of Versailles"], "transport": "RER train"},
+        {"day": 5, "city": "Paris", "activities": ["Visit the Eiffel Tower", "Picnic at Champ de Mars"], "transport": "Walking"}
+    ],
+    "total_budget": "2500 euros",
+    "transportation": ["Metro", "Walking", "Funicular", "RER train"],
+    "accommodation": "Boutique hotel"
+}
+
+async def generate_fake_itinerary_stream(destination: str, trip_type: str) -> AsyncGenerator[str, None]:
+    """
+    Streams the fake itinerary day by day as if it were a real-time response.
+    """
+    yield '{"days": [\n'  # Start of JSON array
+
+    for i, day in enumerate(FAKE_ITINERARY["days"]):
+        await asyncio.sleep(1)  # Simulate delay in response
+        chunk = json.dumps(day, ensure_ascii=False)
+        if i < len(FAKE_ITINERARY["days"]) - 1:
+            yield chunk + ",\n"  # Comma between objects
+        else:
+            yield chunk + "\n"  # No comma for last object
+
+    # Stream the remaining details
+    await asyncio.sleep(1)
+    yield f'], "total_budget": "{FAKE_ITINERARY["total_budget"]}",\n'
+    await asyncio.sleep(1)
+    yield f'"transportation": {json.dumps(FAKE_ITINERARY["transportation"])},\n'
+    await asyncio.sleep(1)
+    yield f'"accommodation": "{FAKE_ITINERARY["accommodation"]}"}}\n'  # End of JSON
+
+@app.get("/generate-itinerary-fake/")
+async def get_itinerary(destination: str, trip_type: str = "standard"):
+    """
+    Streams the fake AI-generated travel itinerary **as it's being generated** for real-time frontend updates.
+    """
+    return StreamingResponse(generate_fake_itinerary_stream(destination, trip_type), media_type="text/event-stream")
