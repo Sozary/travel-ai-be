@@ -1,81 +1,98 @@
-from fastapi import FastAPI, Query
-import openai
 import os
-from dotenv import load_dotenv
 import json
-from typing import Dict
+import openai
+import asyncio
+from dotenv import load_dotenv
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from typing import AsyncGenerator
 
 # Load environment variables
 load_dotenv()
 
-# Get OpenAI API key
+# Get OpenAI API Key
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Initialize FastAPI app
 app = FastAPI()
 
-def generate_itinerary(destination: str, trip_type: str = "standard", duration: int = 7) -> Dict:
+# Enable CORS for frontend communication
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Set this to your frontend's domain in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+def openai_stream_response(user_prompt: str, trip_type: str = "standard"):
     """
-    Calls OpenAI API to generate a structured travel itinerary in valid JSON format.
+    Calls OpenAI API and streams the itinerary response in real-time.
     """
 
+    # Define the prompt for OpenAI
     prompt = f"""
-    You are an AI travel assistant. Generate a {duration}-day travel itinerary for {destination}.
-    The trip type is '{trip_type}'.
+    You are an AI travel assistant. Generate a travel itinerary based on the following input.
 
-    Include the following details:
+    User Input: "{user_prompt}"
+    Trip type: '{trip_type}'
+
+    Include:
     - Main cities to visit
-    - Suggested transportation between locations
+    - Suggested transportation
     - Recommended activities per day
-    - Accommodation type (hostel, hotel, Airbnb, etc.)
-    - Estimated budget for the entire trip
+    - Accommodation type
+    - Estimated budget
     - Local food recommendations
     - Optional cultural or relaxing activities
 
-    Return the response as a **valid JSON object**, without Markdown formatting, and ensure it is structured like this:
-
+    **Return a valid JSON response with no Markdown formatting**:
     {{
       "days": [
         {{
           "day": 1,
-          "city": "Bangkok",
-          "activities": ["Visit temples", "Try street food"],
-          "transport": "Plane"
+          "city": "City Name",
+          "activities": ["Activity 1", "Activity 2"],
+          "transport": "Transport mode"
         }}
       ],
-      "total_budget": "$1500",
-      "transportation": ["Plane", "Bus"],
-      "accommodation": "Hostel"
+      "total_budget": "Estimated budget",
+      "transportation": ["List", "of", "transport", "modes"],
+      "accommodation": "Recommended accommodation type"
     }}
     """
 
     # Initialize OpenAI client
     client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
-    # Make the API request
-    response = client.chat.completions.create(
-        model="gpt-4-turbo",  
-        messages=[
-            {"role": "system", "content": "You are a helpful travel assistant."},
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0.7
-    )
+    try:
+        # OpenAI API call with streaming enabled
+        response = client.chat.completions.create(
+            model="gpt-4-turbo",
+            messages=[
+                {"role": "system", "content": "You are a helpful travel assistant."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            stream=True
+        )
 
-    # Extract response content
-    raw_text = response.choices[0].message.content.strip()
+        # Yield chunks as they arrive
+        for chunk in response:
+            content = chunk.choices[0].delta.content  # Extract streamed content
 
-    # Remove possible markdown code block formatting
-    if raw_text.startswith("```json"):
-        raw_text = raw_text[7:-3].strip()
+            if content:
+                yield content  # Send it immediately to frontend
 
-    return json.loads(raw_text)  # Convert response text to JSON
+    except Exception as e:
+        print(f"Error during OpenAI streaming: {e}")
+        yield json.dumps({"error": "Failed to fetch itinerary from OpenAI."})
+
 
 @app.get("/generate-itinerary/")
-async def get_itinerary(destination: str, trip_type: str = "standard", duration: int = 7):
+def get_itinerary(destination: str, trip_type: str = "standard"):
     """
-    API endpoint to generate a travel itinerary.
-    Example usage: /generate-itinerary/?destination=Japan&trip_type=backpacking&duration=10
+    Streams the AI-generated travel itinerary as it's being generated.
     """
-    itinerary = generate_itinerary(destination, trip_type, duration)
-    return itinerary  # ✅ Returns valid JSON
+    return StreamingResponse(openai_stream_response(destination, trip_type), media_type="text/event-stream")
