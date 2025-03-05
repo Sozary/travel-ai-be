@@ -34,18 +34,39 @@ def openai_stream_response(user_prompt: str, trip_type: str = "standard"):
 
     # Define the prompt for OpenAI
     prompt = f"""
-    You are an AI travel assistant. Generate a travel itinerary based on the following user input.
+    You are an AI travel assistant. Your job is to generate a highly personalized, detailed, and structured travel itinerary based on the user's request.
 
-    User Input: "{user_prompt}"
-    Trip type: '{trip_type}'
+    ## **User Request**
+    - **User Input:** "{user_prompt}"
+    - **Trip Type:** '{trip_type}'
+    
+    ## **Response Rules**
+    - **Respect the user's request**: If they specify the **number of days**, generate that exact number of days.
+    - **Budget awareness**: If the user mentions a budget, tailor recommendations accordingly (e.g., luxury hotels, budget hostels, expensive vs. affordable restaurants).
+    - **Activity Balance**:
+      - If the user **does not specify** a number of activities per day, adjust based on the trip type:
+        - **Relaxing trips**: Fewer activities with **longer stays** at locations.
+        - **Exploration trips**: More activities, with a mix of famous landmarks and hidden gems.
+        - **Adventure trips**: Activities with action-oriented experiences (e.g., hiking, diving).
+        - **Cultural trips**: Museums, historical sites, immersive experiences.
+      - If the user **does specify** how many activities they want per day, strictly follow that.
+    - **Include Restaurants**: If the user mentions food, restaurants, or cuisine preferences, include recommended restaurants in the itinerary.
 
-    ## **Output Structure:**
-    - **Each day contains a list of activities with exact locations** (e.g., "Louvre Museum, Paris, France").
-    - **Each activity has a visit duration**, formatted like "2 hours", "45 minutes", or "30 minutes".
-    - **Transport mode is simplified** to: "Walking", "Metro", "Taxi", "Bus", "Bicycle", "Ferry", "Train".
-    - **Output is in valid JSON format**.
+    ## **Activity Naming Rules**
+    - **For specific places (landmarks, restaurants, attractions, museums, etc.)**, always include:
+      - `"name"`: The **specific** name of the attraction.
+      - `"location"`: The exact location in `"City, Country"` format (e.g., `"Eiffel Tower, Paris, France"`).
+    - **For general explorations, city strolls, or district visits**:
+      - `"name"`: A broad descriptor (e.g., `"Explore Montmartre"`, `"Stroll through Old Town"`).
+      - `"location"`: The **district or city** (e.g., `"Montmartre, Paris, France"` or `"Old Town, Prague, Czech Republic"`).
+    - **Example Corrections:**
+      - ❌ `"Explore Avignon"` (too vague) → ✅ `"Explore Palais des Papes"` with `"location": "Palais des Papes, Avignon, France"`.
+      - ❌ `"Discover Rome"` (too broad) → ✅ `"Walk through Trastevere"` with `"location": "Trastevere, Rome, Italy"`.
 
-    **Example JSON Output:**
+    ## **Itinerary Output Format**
+    Your response must be a valid JSON object:
+
+    ```json
     {{
       "days": [
         {{
@@ -62,14 +83,61 @@ def openai_stream_response(user_prompt: str, trip_type: str = "standard"):
               "location": "Tuileries Garden, Paris, France",
               "duration": "45 minutes",
               "transport_to_next": "Walking"
+            }},
+            {{
+              "name": "Le Petit Bouillon Pharamond",
+              "location": "Paris, France",
+              "duration": "1 hour",
+              "transport_to_next": "Walking",
+              "type": "restaurant"
+            }}
+          ]
+        }},
+        {{
+          "day": 2,
+          "activities": [
+            {{
+              "name": "Eiffel Tower",
+              "location": "Eiffel Tower, Paris, France",
+              "duration": "1 hour 30 minutes",
+              "transport_to_next": "Taxi"
+            }},
+            {{
+              "name": "Seine River Cruise",
+              "location": "Seine River, Paris, France",
+              "duration": "2 hours",
+              "transport_to_next": "Walking"
+            }},
+            {{
+              "name": "Le Procope",
+              "location": "Paris, France",
+              "duration": "1 hour",
+              "transport_to_next": "Walking",
+              "type": "restaurant"
             }}
           ]
         }}
       ],
       "total_budget": "2500 euros",
-      "transportation": ["Metro", "Walking"],
+      "transportation": ["Metro", "Walking", "Taxi"],
       "accommodation": "Boutique hotel"
     }}
+    ```
+
+    ## **Additional Itinerary Guidelines**
+    - **Use diverse transportation modes**: Walking, metro, taxi, bicycle, ferry, train, etc.
+    - **Provide variety**: Do not only include famous landmarks—add hidden gems, scenic spots, and unique local experiences.
+    - **Time-aware recommendations**: Ensure that travel time between locations is reasonable.
+    - **Include food stops & local experiences**:
+      - If the user requests food or restaurants, add well-rated local restaurants.
+      - If the user doesn’t specify, assume at least **one meal per day at a recommended restaurant**.
+    - **Adapt to seasons**: If the user mentions travel dates, consider **weather conditions** and recommend season-appropriate activities.
+    - **Evening activities**: Suggest nightlife, bars, or cultural evening events if relevant.
+    - If this response does not reach the number of days requested, **continue where it left off**.
+    - Ensure the JSON format remains valid.
+
+
+    Ensure the response is in **valid JSON format**.
     """
 
     # Initialize OpenAI client
@@ -114,30 +182,174 @@ def random_duration():
 # Fake Itinerary Data (to simulate OpenAI streaming response)
 FAKE_ITINERARY = {
     "days": [
+    {
+      "day": 1,
+      "activities": [
         {
-            "day": 1,
-            "activities": [
-                {"name": "Luxembourg Gardens", "location": "Luxembourg Gardens, Paris, France", "duration": random_duration(), "transport_to_next": "Walking"},
-                {"name": "Sainte-Chapelle", "location": "Sainte-Chapelle, Paris, France", "duration": random_duration(), "transport_to_next": "Metro"},
-                {"name": "Place Dauphine", "location": "Place Dauphine, Paris, France", "duration": random_duration(), "transport_to_next": "Walking"}
-            ]
+          "name": "Explore Avignon",
+          "location": "Palais des Papes, Avignon, France",
+          "duration": "2 hours",
+          "transport_to_next": "Walking"
         },
         {
-            "day": 2,
-            "activities": [
-                {"name": "Montmartre", "location": "Montmartre, Paris, France", "duration": random_duration(), "transport_to_next": "Metro"},
-                {"name": "Basilica of the Sacré-Cœur", "location": "Basilica of the Sacré-Cœur, Paris, France", "duration": random_duration(), "transport_to_next": "Walking"},
-                {"name": "Place du Tertre", "location": "Place du Tertre, Paris, France", "duration": random_duration(), "transport_to_next": "Walking"}
-            ]
+          "name": "Pont Saint-Bénézet",
+          "location": "Pont Saint-Bénézet, Avignon, France",
+          "duration": "1 hour",
+          "transport_to_next": "Walking"
         },
         {
-            "day": 3,
-            "activities": [
-                {"name": "Rodin Museum", "location": "Rodin Museum, Paris, France", "duration": random_duration(), "transport_to_next": "Metro"},
-                {"name": "Les Invalides", "location": "Les Invalides, Paris, France", "duration": random_duration(), "transport_to_next": "Walking"},
-                {"name": "Musée d'Orsay", "location": "Musée d'Orsay, Paris, France", "duration": random_duration(), "transport_to_next": "Walking"}
-            ]
+          "name": "La Fourchette",
+          "location": "Avignon, France",
+          "duration": "1 hour 30 minutes",
+          "transport_to_next": "Walking",
+          "type": "restaurant"
         }
+      ]
+    },
+    {
+      "day": 2,
+      "activities": [
+        {
+          "name": "Drive to Lyon",
+          "location": "Lyon, France",
+          "duration": "3 hours",
+          "transport_to_next": "Van"
+        },
+        {
+          "name": "Parc de la Tête d'Or",
+          "location": "Lyon, France",
+          "duration": "2 hours",
+          "transport_to_next": "Walking"
+        },
+        {
+          "name": "Bouchon Des Filles",
+          "location": "Lyon, France",
+          "duration": "1 hour 30 minutes",
+          "transport_to_next": "Walking",
+          "type": "restaurant"
+        }
+      ]
+    },
+    {
+      "day": 3,
+      "activities": [
+        {
+          "name": "Drive to Dijon",
+          "location": "Dijon, France",
+          "duration": "2 hours",
+          "transport_to_next": "Van"
+        },
+        {
+          "name": "Palace of the Dukes",
+          "location": "Dijon, France",
+          "duration": "1 hour 30 minutes",
+          "transport_to_next": "Walking"
+        },
+        {
+          "name": "Le Bistrot des Halles",
+          "location": "Dijon, France",
+          "duration": "1 hour",
+          "transport_to_next": "Walking",
+          "type": "restaurant"
+        }
+      ]
+    },
+    {
+      "day": 4,
+      "activities": [
+        {
+          "name": "Drive to Reims",
+          "location": "Reims, France",
+          "duration": "3 hours 30 minutes",
+          "transport_to_next": "Van"
+        },
+        {
+          "name": "Visit Notre-Dame de Reims",
+          "location": "Reims, France",
+          "duration": "1 hour 30 minutes",
+          "transport_to_next": "Walking"
+        },
+        {
+          "name": "Le Jardin Les Crayères",
+          "location": "Reims, France",
+          "duration": "1 hour",
+          "transport_to_next": "Walking",
+          "type": "restaurant"
+        }
+      ]
+    },
+    {
+      "day": 5,
+      "activities": [
+        {
+          "name": "Drive to Paris",
+          "location": "Paris, France",
+          "duration": "2 hours",
+          "transport_to_next": "Van"
+        },
+        {
+          "name": "Louvre Museum",
+          "location": "Louvre Museum, Paris, France",
+          "duration": "3 hours",
+          "transport_to_next": "Metro"
+        },
+        {
+          "name": "Le Petit Bouillon Pharamond",
+          "location": "Paris, France",
+          "duration": "1 hour 30 minutes",
+          "transport_to_next": "Walking",
+          "type": "restaurant"
+        }
+      ]
+    },
+    {
+      "day": 6,
+      "activities": [
+        {
+          "name": "Montmartre",
+          "location": "Montmartre, Paris, France",
+          "duration": "2 hours",
+          "transport_to_next": "Metro"
+        },
+        {
+          "name": "Sacré-Cœur",
+          "location": "Sacré-Cœur, Paris, France",
+          "duration": "1 hour",
+          "transport_to_next": "Walking"
+        },
+        {
+          "name": "Le Refuge des Fondus",
+          "location": "Paris, France",
+          "duration": "1 hour 30 minutes",
+          "transport_to_next": "Walking",
+          "type": "restaurant"
+        }
+      ]
+    },
+    {
+      "day": 7,
+      "activities": [
+        {
+          "name": "Drive to Brittany",
+          "location": "Rennes, Brittany, France",
+          "duration": "4 hours",
+          "transport_to_next": "Van"
+        },
+        {
+          "name": "Explore Rennes",
+          "location": "Rennes, Brittany, France",
+          "duration": "2 hours",
+          "transport_to_next": "Walking"
+        },
+        {
+          "name": "Creperie Saint Georges",
+          "location": "Rennes, Brittany, France",
+          "duration": "1 hour 30 minutes",
+          "transport_to_next": "Walking",
+          "type": "restaurant"
+        }
+      ]
+    }
     ],
     "total_budget": "2000 euros",
     "transportation": ["Metro", "Walking"],
