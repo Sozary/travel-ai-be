@@ -89,7 +89,7 @@ def openai_stream_response(user_prompt: str, api_key: str, trip_type: str = "sta
     ## **Activity Naming Rules**
     - **For specific places (landmarks, restaurants, attractions, museums, etc.)**, always include:
       - `"name"`: The **specific** name of the attraction.
-      - `"location"`: The exact location in `"City, Country"` format (e.g., `"Eiffel Tower, Paris, France"`).
+      - `"location"`: The exact location with `"Name of the place,City, Country"` format (e.g., `"Eiffel Tower, Paris, France"`).
     - **For general explorations, city strolls, or district visits**:
       - `"name"`: A broad descriptor (e.g., `"Explore Montmartre"`, `"Stroll through Old Town"`).
       - `"location"`: The **district or city** (e.g., `"Montmartre, Paris, France"` or `"Old Town, Prague, Czech Republic"`).
