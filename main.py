@@ -15,6 +15,9 @@ load_dotenv()
 # Get OpenAI API Key
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
+PORT = int(os.environ.get("PORT", 8000))
+
+
 # Initialize FastAPI app
 app = FastAPI()
 
@@ -26,6 +29,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=PORT, reload=True)
 
 def openai_stream_response(user_prompt: str, api_key: str, trip_type: str = "standard"):
     """
