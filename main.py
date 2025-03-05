@@ -34,6 +34,10 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=PORT, reload=True)
 
+@app.get("/healthcheck")
+def healthcheck():
+    return {"status": "ok"}
+
 def openai_stream_response(user_prompt: str, api_key: str, trip_type: str = "standard"):
     """
     Calls OpenAI API and streams the itinerary response in real-time.
