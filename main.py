@@ -38,21 +38,36 @@ if __name__ == "__main__":
 def healthcheck():
     return {"status": "ok"}
 
-def openai_stream_response(user_prompt: str, api_key: str, trip_type: str = "standard"):
+def openai_stream_response(user_prompt: str, api_key: str, trip_type: str = "standard", start_day: int = 1, total_days: int = 7):
     """
     Calls OpenAI API and streams the itinerary response in real-time.
     """
     if not api_key:
         raise HTTPException(status_code=400, detail="Missing API key")
 
+    remaining_days = total_days - start_day + 1
+    generate_days = min(2, remaining_days)  # Generate max 2 days per request
+    should_continue = (start_day + generate_days) <= total_days
 
+    print(f"DEBUG: remaining_days={remaining_days}, generate_days={generate_days}, should_continue={should_continue}")
+
+    
     # Define the prompt for OpenAI
     prompt = f"""
     You are an AI travel assistant. Your job is to generate a highly personalized, detailed, and structured travel itinerary based on the user's request.
 
-    ## **User Request**
+     ## **User Request**
     - **User Input:** "{user_prompt}"
     - **Trip Type:** '{trip_type}'
+    - **Start from day {start_day}**.
+    - **Generate exactly 2 days of itinerary**.
+    - **Do NOT summarize previous days**.
+    - **Start from day {start_day}**.
+    - **Generate exactly {generate_days} days**.
+    - **Continue generating days until total_days ({total_days}) is fully reached**.
+    - **Only set `"continue": false"` when all days have been generated**.
+
+    
     
     ## **Response Rules**
     - **Respect the user's request**: If they specify the **number of days**, generate that exact number of days.
@@ -134,7 +149,9 @@ def openai_stream_response(user_prompt: str, api_key: str, trip_type: str = "sta
       ],
       "total_budget": "2500 euros",
       "transportation": ["Metro", "Walking", "Taxi"],
-      "accommodation": "Boutique hotel"
+      "accommodation": "Boutique hotel",
+      "continue": {str(should_continue).lower()},
+      "next_start_day": {start_day + generate_days if should_continue else total_days}
     }}
     ```
 
@@ -154,6 +171,7 @@ def openai_stream_response(user_prompt: str, api_key: str, trip_type: str = "sta
     Ensure the response is in **valid JSON format**.
     """
 
+    print(f"prompt: {prompt}")
     # Initialize OpenAI client
     client = openai.OpenAI(api_key=api_key)
 
@@ -169,25 +187,67 @@ def openai_stream_response(user_prompt: str, api_key: str, trip_type: str = "sta
             stream=True
         )
 
-        # Yield chunks as they arrive
         for chunk in response:
             content = chunk.choices[0].delta.content  # Extract streamed content
 
             if content:
                 yield content  # Send it immediately to frontend
 
+
     except Exception as e:
         print(f"Error during OpenAI streaming: {e}")
         yield json.dumps({"error": "Failed to fetch itinerary from OpenAI."})
 
+def extract_total_days(user_prompt: str, api_key: str) -> int:
+    """
+    Calls OpenAI to extract the total number of days from the user's request.
+    """
+    client = openai.OpenAI(api_key=api_key)
+
+    prompt = f"""
+    You are a travel assistant. Extract the number of days the user wants for their trip.
+
+    ## **User Input:**
+    "{user_prompt}"
+
+    ## **Output Format:**
+    Return a **single integer** representing the number of days in the trip.
+    If the user did not specify a number of days, **guess based on their request**.
+
+    **Example Responses:**
+    - "I want a 10-day trip to Japan" → `10`
+    - "Plan me a week-long trip to Thailand" → `7`
+    - "A weekend in Paris" → `2`
+    - "A long vacation in Spain" → `14`
+    - "No duration mentioned" → `7` (default to a reasonable guess)
+    """
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4-turbo",
+            messages=[{"role": "system", "content": "You are a helpful assistant."},
+                      {"role": "user", "content": prompt}],
+            temperature=0.5
+        )
+
+        extracted_days = int(response.choices[0].message.content.strip())
+        return max(1, extracted_days)  # Ensure at least 1 day
+    except Exception as e:
+        print(f"Error extracting total days: {e}")
+        return 7  # Default to 7 days if extraction fails
+
 
 @app.get("/generate-itinerary/")
-def get_itinerary(destination: str, api_key: str = Query(...), trip_type: str = "standard"):
+def get_itinerary(destination: str, api_key: str = Query(...), trip_type: str = "standard", start_day: int = Query(1)):
     """
-    Streams the AI-generated travel itinerary as it's being generated.
+    Automatically extracts `total_days` from the user's prompt before generating the itinerary.
     """
-    return StreamingResponse(openai_stream_response(destination, api_key, trip_type), media_type="text/event-stream")
+    total_days = extract_total_days(destination, api_key)  # Auto-detect total days
 
+    return StreamingResponse(
+        openai_stream_response(destination, api_key, trip_type, start_day, total_days),
+        media_type="text/event-stream"
+    )
 
 # Function to generate a random visit duration (for fake itinerary)
 def random_duration():
