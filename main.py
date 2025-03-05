@@ -3,7 +3,7 @@ import json
 import openai
 import asyncio
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from typing import AsyncGenerator
@@ -27,10 +27,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-def openai_stream_response(user_prompt: str, trip_type: str = "standard"):
+def openai_stream_response(user_prompt: str, api_key: str, trip_type: str = "standard"):
     """
     Calls OpenAI API and streams the itinerary response in real-time.
     """
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Missing API key")
+
 
     # Define the prompt for OpenAI
     prompt = f"""
@@ -141,7 +144,7 @@ def openai_stream_response(user_prompt: str, trip_type: str = "standard"):
     """
 
     # Initialize OpenAI client
-    client = openai.OpenAI(api_key=OPENAI_API_KEY)
+    client = openai.OpenAI(api_key=api_key)
 
     try:
         # OpenAI API call with streaming enabled
@@ -168,11 +171,12 @@ def openai_stream_response(user_prompt: str, trip_type: str = "standard"):
 
 
 @app.get("/generate-itinerary/")
-def get_itinerary(destination: str, trip_type: str = "standard"):
+def get_itinerary(destination: str, api_key: str = Query(...), trip_type: str = "standard"):
     """
     Streams the AI-generated travel itinerary as it's being generated.
     """
-    return StreamingResponse(openai_stream_response(destination, trip_type), media_type="text/event-stream")
+    return StreamingResponse(openai_stream_response(destination, api_key, trip_type), media_type="text/event-stream")
+
 
 # Function to generate a random visit duration (for fake itinerary)
 def random_duration():
