@@ -46,7 +46,7 @@ def openai_stream_response(user_prompt: str, api_key: str, trip_type: str = "sta
         raise HTTPException(status_code=400, detail="Missing API key")
 
     remaining_days = total_days - start_day + 1
-    generate_days = min(2, remaining_days)  # Generate max 2 days per request
+    generate_days = min(4, remaining_days)  # Generate max 4 days per request
     should_continue = (start_day + generate_days) <= total_days
 
     print(f"DEBUG: remaining_days={remaining_days}, generate_days={generate_days}, should_continue={should_continue}")
@@ -60,14 +60,19 @@ def openai_stream_response(user_prompt: str, api_key: str, trip_type: str = "sta
     - **User Input:** "{user_prompt}"
     - **Trip Type:** '{trip_type}'
     - **Start from day {start_day}**.
-    - **Generate exactly 2 days of itinerary**.
+    - **Generate exactly 4 days of itinerary**.
     - **Do NOT summarize previous days**.
     - **Start from day {start_day}**.
     - **Generate exactly {generate_days} days**.
     - **Continue generating days until total_days ({total_days}) is fully reached**.
-    - **Only set `"continue": false"` when all days have been generated**.
+    - **Set `"continue"` to {str(should_continue).lower()} exactly as provided**.
+    - **If total_days is reached, `"continue"` must be `false`. Otherwise, it must be `true`**.
 
-    
+
+    ## **Critical JSON Output Rule**
+    - `"continue"` must be **exactly `{str(should_continue).lower()}`**, and it **must not** be `false` unless the full trip has been generated.
+    - `"next_start_day"` must be **exactly `{start_day + generate_days if should_continue else total_days}`**.
+
     
     ## **Response Rules**
     - **Respect the user's request**: If they specify the **number of days**, generate that exact number of days.
@@ -178,7 +183,7 @@ def openai_stream_response(user_prompt: str, api_key: str, trip_type: str = "sta
     try:
         # OpenAI API call with streaming enabled
         response = client.chat.completions.create(
-            model="gpt-4-turbo",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are a helpful travel assistant."},
                 {"role": "user", "content": prompt}
@@ -224,17 +229,19 @@ def extract_total_days(user_prompt: str, api_key: str) -> int:
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4-turbo",
+            model="gpt-4o-mini",
             messages=[{"role": "system", "content": "You are a helpful assistant."},
                       {"role": "user", "content": prompt}],
             temperature=0.5
         )
 
         extracted_days = int(response.choices[0].message.content.strip())
-        return max(1, extracted_days)  # Ensure at least 1 day
+        total_days = min(max(1, extracted_days), 5)
+        return total_days
     except Exception as e:
         print(f"Error extracting total days: {e}")
         return 7  # Default to 7 days if extraction fails
+
 
 
 @app.get("/generate-itinerary/")
