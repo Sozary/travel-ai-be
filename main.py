@@ -1,3 +1,7 @@
+import random
+import json
+import asyncio
+from typing import AsyncGenerator
 import os
 import json
 import openai
@@ -438,26 +442,36 @@ FAKE_ITINERARY = {
     "accommodation": "Budget hotel"
 }
 
+
+
 async def generate_fake_itinerary_stream(destination: str, trip_type: str) -> AsyncGenerator[str, None]:
     """
-    Streams the fake itinerary day by day as if it were a real-time response.
+    Streams the fake itinerary day by day with varying chunk sizes, simulating real-time API streaming.
     """
     yield '{"days": [\n'  # Start of JSON array
 
     for i, day in enumerate(FAKE_ITINERARY["days"]):
-        await asyncio.sleep(1)  # Simulate delay in response
+        await asyncio.sleep(random.uniform(0.5, 1.5))  # Simulating varied network latency
+
+        # Convert day to JSON and break it into random-sized chunks
         chunk = json.dumps(day, ensure_ascii=False)
-        if i < len(FAKE_ITINERARY["days"]) - 1:
-            yield chunk + ",\n"  # Comma between objects
-        else:
-            yield chunk + "\n"  # No comma for last object
+        chunk_size = random.randint(20, 100)  # Random chunk size between 20-100 characters
+        chunks = [chunk[i:i+chunk_size] for i in range(0, len(chunk), chunk_size)]
+
+        for part in chunks:
+            await asyncio.sleep(random.uniform(0.2, 0.6))  # Simulating varied response speeds
+            yield part
+
+        yield ",\n" if i < len(FAKE_ITINERARY["days"]) - 1 else "\n"  # Comma for separation
 
     # Stream the remaining details
-    await asyncio.sleep(1)
+    await asyncio.sleep(random.uniform(0.5, 1.5))
     yield f'], "total_budget": "{FAKE_ITINERARY["total_budget"]}",\n'
-    await asyncio.sleep(1)
+    
+    await asyncio.sleep(random.uniform(0.5, 1.5))
     yield f'"transportation": {json.dumps(FAKE_ITINERARY["transportation"])},\n'
-    await asyncio.sleep(1)
+    
+    await asyncio.sleep(random.uniform(0.5, 1.5))
     yield f'"accommodation": "{FAKE_ITINERARY["accommodation"]}"}}\n'  # End of JSON
 
 @app.get("/generate-itinerary-fake/")
